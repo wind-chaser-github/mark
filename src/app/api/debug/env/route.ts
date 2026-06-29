@@ -9,7 +9,11 @@ export async function GET(request: Request) {
   
   const envValues: Record<string, string> = {};
   for (const k of envKeys) {
-    envValues[k] = process.env[k] ? 'SET (length: ' + process.env[k].length + ')' : 'EMPTY';
+    if (k === 'REDIS_URL') {
+      envValues[k] = process.env[k] ? 'starts with: ' + process.env[k].substring(0, 10) : 'EMPTY';
+    } else {
+      envValues[k] = process.env[k] ? 'SET (length: ' + process.env[k].length + ')' : 'EMPTY';
+    }
   }
   
   return NextResponse.json({
