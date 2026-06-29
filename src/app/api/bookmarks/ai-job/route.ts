@@ -21,7 +21,7 @@ export async function GET(request: Request) {
     console.log(`[AI Worker] Processing bookmark: ${pendingBookmark.url}`);
 
     // 2. Call AI
-    const metadata = await extractMetadataViaAI(pendingBookmark.url, pendingBookmark.title || '', '');
+    const metadata = await extractMetadataViaAI(pendingBookmark.url, pendingBookmark.title || '', '', syncCode);
 
     // 3. Upsert Category
     let category = store.categories.find(c => c.name === metadata.category);

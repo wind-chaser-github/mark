@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { getStore, setStore, Bookmark, Category } from '@/lib/store';
 import { extractMetadataViaAI } from '@/lib/ai';
 import { parseNetscapeBookmarks } from '@/lib/bookmarkParser';
+import { v4 as uuidv4 } from 'uuid';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
+  const syncCode = request.headers.get('x-sync-code') || 'default';
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
@@ -20,54 +22,56 @@ export async function POST(request: Request) {
     let imported = 0;
     let skipped = 0;
 
-    // For an MVP, we process them sequentially or in batches. 
-    // WARNING: Processing too many with AI sequentially might hit rate limits or take too long.
-    // To prevent Vercel 10s timeout, we should ideally put this in a queue. 
-    // For now, we'll process the first 10 for demonstration if there are many, 
-    // or just process them without AI if there are too many.
-    const limit = Math.min(parsedBookmarks.length, 20); // Cap at 20 for initial test
+    const store = await getStore(syncCode);
+
+    const limit = Math.min(parsedBookmarks.length, 20); 
 
     for (let i = 0; i < limit; i++) {
       const item = parsedBookmarks[i];
       
-      const existing = await prisma.bookmark.findUnique({ where: { url: item.url } });
+      const existing = store.bookmarks.find(b => b.url === item.url);
       if (existing) {
         skipped++;
         continue;
       }
 
-      // We can use AI to classify, or fallback to folder names if AI fails
-      const metadata = await extractMetadataViaAI(item.url, item.title, '');
+      const metadata = await extractMetadataViaAI(item.url, item.title, '', syncCode);
       const categoryName = metadata.category !== '未分类' 
         ? metadata.category 
         : (item.folders.length > 0 ? item.folders[0] : '未分类');
 
-      const category = await prisma.category.upsert({
-        where: { name: categoryName },
-        update: {},
-        create: { name: categoryName }
-      });
+      let category = store.categories.find(c => c.name === categoryName);
+      if (!category) {
+        category = {
+          id: uuidv4(),
+          name: categoryName,
+          parentId: null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        store.categories.push(category);
+      }
 
       const tags = Array.from(new Set([...metadata.tags, ...item.folders.slice(1)]));
 
-      await prisma.bookmark.create({
-        data: {
-          url: item.url,
-          title: item.title || metadata.title,
-          description: metadata.description,
-          categoryId: category.id,
-          createdAt: item.addDate ? new Date(item.addDate * 1000) : new Date(),
-          tags: {
-            connectOrCreate: tags.map(tag => ({
-              where: { name: tag },
-              create: { name: tag }
-            }))
-          }
-        }
-      });
-      
+      const newBookmark: Bookmark = {
+        id: uuidv4(),
+        url: item.url,
+        title: item.title || metadata.title,
+        description: metadata.description,
+        categoryId: category.id,
+        createdAt: item.addDate ? new Date(item.addDate * 1000).toISOString() : new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        tags: tags,
+        rawHtml: null,
+        favicon: null
+      };
+
+      store.bookmarks.push(newBookmark);
       imported++;
     }
+
+    await setStore(syncCode, store);
 
     return NextResponse.json({ 
       success: true, 

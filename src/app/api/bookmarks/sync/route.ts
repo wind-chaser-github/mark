@@ -87,7 +87,7 @@ export async function processSyncAction(actionData: any, store: AppData) {
     let tagsData: string[] = [];
 
     if (action === 'create_with_meta') {
-      const metadata = await extractMetadataViaAI(url, title, rawDescription);
+      const metadata = await extractMetadataViaAI(url, title, rawDescription, syncCode);
       bookmarkTitle = metadata.title;
       bookmarkDesc = metadata.description;
       tagsData = metadata.tags || [];

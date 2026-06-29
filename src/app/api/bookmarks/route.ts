@@ -63,7 +63,7 @@ export async function POST(request: Request) {
     }
 
     // Call AI for categorization
-    const metadata = await extractMetadataViaAI(url, rawTitle, rawDescription);
+    const metadata = await extractMetadataViaAI(url, rawTitle, rawDescription, syncCode);
 
     // Upsert Category
     let category = store.categories.find(c => c.name === metadata.category);

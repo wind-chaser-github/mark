@@ -1,4 +1,4 @@
-import { prisma } from './prisma';
+import { getStore } from './store';
 
 export interface AIMetadata {
   title: string;
@@ -7,10 +7,9 @@ export interface AIMetadata {
   tags: string[];
 }
 
-export async function extractMetadataViaAI(url: string, rawTitle: string, rawDescription: string = ''): Promise<AIMetadata> {
-  const settings = await prisma.setting.findMany();
-  const config: Record<string, string> = {};
-  settings.forEach((s: any) => { config[s.key] = s.value; });
+export async function extractMetadataViaAI(url: string, rawTitle: string, rawDescription: string = '', syncCode: string = 'default'): Promise<AIMetadata> {
+  const store = await getStore(syncCode);
+  const config = store.settings || {};
 
   const apiKey = config['OPENAI_API_KEY'] || process.env.OPENAI_API_KEY;
   const baseUrl = config['OPENAI_BASE_URL'] || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
@@ -29,7 +28,7 @@ export async function extractMetadataViaAI(url: string, rawTitle: string, rawDes
   }
 
   try {
-    const existingCategories = await prisma.category.findMany({ select: { name: true } });
+    const existingCategories = store.categories;
     const categoryNames = existingCategories.map(c => c.name).filter(c => c !== '未分类').join(', ');
 
     const prompt = `

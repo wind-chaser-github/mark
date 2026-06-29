@@ -1,31 +1,35 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { getStore, setStore } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: Request) {
+  const syncCode = request.headers.get('x-sync-code') || 'default';
   try {
-    const settings = await prisma.setting.findMany();
-    const config: Record<string, string> = {};
-    settings.forEach((s: any) => { config[s.key] = s.value; });
-    return NextResponse.json(config);
+    const store = await getStore(syncCode);
+    return NextResponse.json(store.settings || {});
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
+  const syncCode = request.headers.get('x-sync-code') || 'default';
   try {
     const config = await request.json();
+    const store = await getStore(syncCode);
+    
+    if (!store.settings) {
+      store.settings = {};
+    }
+    
     for (const [key, value] of Object.entries(config)) {
       if (typeof value === 'string') {
-        await prisma.setting.upsert({
-          where: { key },
-          update: { value },
-          create: { key, value }
-        });
+        store.settings[key] = value;
       }
     }
+    
+    await setStore(syncCode, store);
     return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

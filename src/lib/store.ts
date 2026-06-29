@@ -26,6 +26,7 @@ export interface Category {
 export interface AppData {
   bookmarks: Bookmark[];
   categories: Category[];
+  settings: Record<string, string>;
 }
 
 const DEFAULT_DATA: AppData = {
@@ -38,7 +39,8 @@ const DEFAULT_DATA: AppData = {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
-  ]
+  ],
+  settings: {}
 };
 
 const LOCAL_FILE_PATH = path.join(process.cwd(), '.data.json');
