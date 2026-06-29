@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Search, Upload, Loader2, Trash2, Folder, Tag as TagIcon, Globe, Settings, Edit3, X, Sparkles, FolderPlus, CheckSquare, Move, MoreHorizontal } from 'lucide-react';
+import { Search, Upload, Loader2, Trash2, Folder, Tag as TagIcon, Globe, Settings, Edit3, X, Sparkles, FolderPlus, CheckSquare, Move, MoreHorizontal, LogOut } from 'lucide-react';
 
 // Recursive Category Tree Component
 const CategoryNode = ({ category, selectedCategory, onSelect, onAddSub, onEdit, depth = 0 }: any) => {
@@ -252,6 +252,16 @@ export default function Home() {
     }
   };
 
+  const handleLogout = async () => {
+    if (!confirm('确定要退出当前账号吗？')) return;
+    try {
+      const res = await fetch('/api/auth/logout', { method: 'POST' });
+      if (res.ok) {
+        window.location.href = '/login';
+      }
+    } catch (e) {}
+  };
+
   const openEdit = (bookmark: any) => {
     setEditBookmark(bookmark);
     setEditTitle(bookmark.title || '');
@@ -336,12 +346,19 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="absolute bottom-6 left-6 right-6">
+        <div className="absolute bottom-6 left-6 right-6 flex gap-2">
           <button 
             onClick={openSettings}
-            className="w-full flex items-center justify-center gap-2 text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors bg-white/30 dark:bg-white/5 hover:bg-white/50 dark:hover:bg-white/10 py-2.5 rounded-xl border border-white/20 dark:border-white/5 backdrop-blur-md"
+            className="flex-1 flex items-center justify-center gap-2 text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors bg-white/30 dark:bg-white/5 hover:bg-white/50 dark:hover:bg-white/10 py-2.5 rounded-xl border border-white/20 dark:border-white/5 backdrop-blur-md"
           >
-            <Settings className="h-4 w-4" /> 系统配置
+            <Settings className="h-4 w-4" /> 配置
+          </button>
+          <button 
+            onClick={handleLogout}
+            className="flex-none px-3 flex items-center justify-center text-zinc-500 hover:text-red-500 transition-colors bg-white/30 dark:bg-white/5 hover:bg-red-50 dark:hover:bg-red-500/10 py-2.5 rounded-xl border border-white/20 dark:border-white/5 backdrop-blur-md"
+            title="退出登录"
+          >
+            <LogOut className="h-4 w-4" />
           </button>
         </div>
       </aside>
