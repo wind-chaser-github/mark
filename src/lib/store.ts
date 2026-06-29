@@ -1,4 +1,4 @@
-import { kv } from '@vercel/kv';
+import { put, list } from '@vercel/blob';
 import fs from 'fs';
 import path from 'path';
 
@@ -45,8 +45,8 @@ const DEFAULT_DATA: AppData = {
 
 const LOCAL_FILE_PATH = path.join(process.cwd(), '.data.json');
 
-// 判断是否配置了 Vercel KV
-const useKV = !!process.env.KV_REST_API_URL && !!process.env.KV_REST_API_TOKEN;
+// 判断是否配置了 Vercel Blob
+const useBlob = !!process.env.BLOB_READ_WRITE_TOKEN;
 
 // 从本地文件系统读取
 async function getLocal(syncCode: string): Promise<AppData> {
@@ -79,13 +79,20 @@ async function setLocal(syncCode: string, data: AppData): Promise<void> {
 }
 
 export async function getStore(syncCode: string): Promise<AppData> {
-  if (useKV) {
+  if (useBlob) {
     try {
-      const data = await kv.get<AppData>(`mark:${syncCode}`);
-      if (!data) return DEFAULT_DATA;
-      return data;
+      const targetPath = `mark-data-${syncCode}.json`;
+      const { blobs } = await list({ prefix: targetPath });
+      const targetBlob = blobs.find(b => b.pathname === targetPath);
+      
+      if (targetBlob) {
+        const response = await fetch(targetBlob.url);
+        const data = await response.json();
+        return data as AppData;
+      }
+      return DEFAULT_DATA;
     } catch (e) {
-      console.error('KV get error:', e);
+      console.error('Blob get error:', e);
       return DEFAULT_DATA;
     }
   } else {
@@ -94,11 +101,15 @@ export async function getStore(syncCode: string): Promise<AppData> {
 }
 
 export async function setStore(syncCode: string, data: AppData): Promise<void> {
-  if (useKV) {
+  if (useBlob) {
     try {
-      await kv.set(`mark:${syncCode}`, data);
+      const targetPath = `mark-data-${syncCode}.json`;
+      await put(targetPath, JSON.stringify(data), {
+        access: 'public',
+        addRandomSuffix: false
+      });
     } catch (e) {
-      console.error('KV set error:', e);
+      console.error('Blob set error:', e);
     }
   } else {
     await setLocal(syncCode, data);
