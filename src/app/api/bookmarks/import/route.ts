@@ -35,31 +35,58 @@ export async function POST(request: Request) {
         continue;
       }
 
-      const metadata = await extractMetadataViaAI(item.url, item.title, '', syncCode);
-      const categoryName = metadata.category !== '未分类' 
-        ? metadata.category 
-        : (item.folders.length > 0 ? item.folders[0] : '未分类');
+      const categoryName = item.folders.length > 0 ? item.folders[item.folders.length - 1] : '未分类';
 
-      let category = store.categories.find(c => c.name === categoryName);
-      if (!category) {
-        category = {
-          id: uuidv4(),
-          name: categoryName,
-          parentId: null,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        };
-        store.categories.push(category);
+      // We still need to ensure the full folder path is created if needed, similar to sync route.
+      // But for simplicity in HTML import, creating just the deepest folder as a flat category works for now,
+      // or we can recreate the tree. Let's just create the tree if we have folders.
+      let categoryId: string | null = null;
+      if (item.folders && item.folders.length > 0) {
+        const validFolders = item.folders.filter((f: string) => f !== 'Bookmarks Bar' && f !== '书签栏' && f !== 'Other Bookmarks' && f !== '其他书签');
+        let currentParentId: string | null = null;
+        let lastCatId: string | null = null;
+        
+        for (const folderName of validFolders) {
+          let cat = store.categories.find(c => c.name === folderName && c.parentId === currentParentId);
+          if (!cat) {
+            cat = {
+              id: uuidv4(),
+              name: folderName,
+              parentId: currentParentId,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            };
+            store.categories.push(cat);
+          }
+          currentParentId = cat.id;
+          lastCatId = cat.id;
+        }
+        categoryId = lastCatId;
       }
 
-      const tags = Array.from(new Set([...metadata.tags, ...item.folders.slice(1)]));
+      if (!categoryId) {
+        let defaultCat = store.categories.find(c => c.name === '未分类');
+        if (!defaultCat) {
+          defaultCat = {
+            id: 'default-uncategorized',
+            name: '未分类',
+            parentId: null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+          store.categories.push(defaultCat);
+        }
+        categoryId = defaultCat.id;
+      }
+
+      const tags = Array.from(new Set(item.folders.slice(1))); // Just use subfolders as tags if wanted
 
       const newBookmark: Bookmark = {
         id: uuidv4(),
         url: item.url,
-        title: item.title || metadata.title,
-        description: metadata.description,
-        categoryId: category.id,
+        title: item.title || item.url,
+        description: null,
+        categoryId: categoryId,
         createdAt: item.addDate ? new Date(item.addDate * 1000).toISOString() : new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         tags: tags,

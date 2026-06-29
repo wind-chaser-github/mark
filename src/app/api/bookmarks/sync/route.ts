@@ -91,19 +91,7 @@ export async function processSyncAction(actionData: any, store: AppData) {
       bookmarkTitle = metadata.title;
       bookmarkDesc = metadata.description;
       tagsData = metadata.tags || [];
-      
-      let aiCat = store.categories.find(c => c.name === metadata.category);
-      if (!aiCat) {
-        aiCat = {
-          id: uuidv4(),
-          name: metadata.category,
-          parentId: null,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        };
-        store.categories.push(aiCat);
-      }
-      finalCategoryId = aiCat.id;
+      // WE DO NOT OVERRIDE categoryId. It strictly follows the browser's original folder.
     } else {
       // mark as pending AI if it fell into 未分类
       const defaultCat = store.categories.find(c => c.name === '未分类');

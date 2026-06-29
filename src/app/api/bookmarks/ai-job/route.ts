@@ -23,23 +23,12 @@ export async function GET(request: Request) {
     // 2. Call AI
     const metadata = await extractMetadataViaAI(pendingBookmark.url, pendingBookmark.title || '', '', syncCode);
 
-    // 3. Upsert Category
-    let category = store.categories.find(c => c.name === metadata.category);
-    if (!category) {
-      category = {
-        id: uuidv4(),
-        name: metadata.category,
-        parentId: null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      store.categories.push(category);
-    }
+    // 3. Upsert Category - DELETED! We no longer let AI dictate category.
+    // Bookmarks stay exactly in the folder they were created/synced to.
 
     // 4. Update Bookmark
     pendingBookmark.title = metadata.title;
     pendingBookmark.description = metadata.description;
-    pendingBookmark.categoryId = category.id;
     pendingBookmark.tags = metadata.tags || [];
     pendingBookmark.updatedAt = new Date().toISOString();
     
