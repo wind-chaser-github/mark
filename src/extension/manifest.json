@@ -3,7 +3,7 @@
   "name": "智能书签管家 (AI Bookmark)",
   "version": "1.1",
   "description": "一键收藏网页并交给 AI 自动分类。",
-  "permissions": ["activeTab", "tabs", "scripting", "bookmarks", "storage"],
+  "permissions": ["activeTab", "tabs", "scripting", "bookmarks", "storage", "alarms"],
   "host_permissions": ["http://localhost:3999/*", "<all_urls>"],
   "options_page": "options.html",
   "action": {
