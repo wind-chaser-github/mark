@@ -100,7 +100,7 @@ export default function Home() {
 
   const fetchSidebarData = async () => {
     try {
-      const res = await fetch('/api/categories');
+      const res = await fetch('/api/categories', { cache: 'no-store' });
       const data = await res.json();
       setCategories(data.categories || []);
       setFlatCategories(data.flatCategories || []);
