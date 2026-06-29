@@ -89,11 +89,6 @@ document.addEventListener('DOMContentLoaded', () => {
         apiKey: '', baseUrl: 'https://api.openai.com/v1', model: 'gpt-3.5-turbo'
       }, r));
       
-      if (!config.apiKey) {
-        alert("请先点击右上角设置图标，配置您的 OpenAI API Key。");
-        return;
-      }
-      
       const statusEl = document.getElementById('status');
       organizeBtn.disabled = true;
       statusEl.textContent = '读取散落书签中...';
@@ -121,40 +116,60 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
         
-        statusEl.textContent = `交由 AI 分类中 (${unorganized.length} 个)...`;
+        let parsed = {};
         
-        const prompt = `
-你是一个智能书签分类助手。这里有一批杂乱的书签，请根据它们的标题和 URL 进行分类。
+        if (config.apiKey) {
+          statusEl.textContent = `交由 AI 分类中 (${unorganized.length} 个)...`;
+          const prompt = `你是一个智能书签分类助手。这里有一批杂乱的书签，请根据它们的标题和 URL 进行分类。
 要求：
 1. 返回一个 JSON，键为书签的 ID，值为你为其分配的分类名称（如：工具、开发、设计、阅读等）。
 2. 分类名称尽量精简、普适。
-
 书签列表：
-${unorganized.map(b => `ID: ${b.id} | Title: ${b.title} | URL: ${b.url}`).join('\n')}
-`;
-        
-        const res = await fetch(`${config.baseUrl}/chat/completions`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${config.apiKey}`
-          },
-          body: JSON.stringify({
-            model: config.model,
-            messages: [{ role: 'user', content: prompt }],
-            response_format: { type: "json_object" },
-            temperature: 0.1
-          })
-        });
-        
-        if (!res.ok) throw new Error('AI 服务请求失败');
-        
-        const data = await res.json();
-        const content = data.choices[0].message.content;
-        const parsed = JSON.parse(content);
+${unorganized.map(b => `ID: ${b.id} | Title: ${b.title} | URL: ${b.url}`).join('\n')}`;
+          
+          const res = await fetch(`${config.baseUrl}/chat/completions`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${config.apiKey}`
+            },
+            body: JSON.stringify({
+              model: config.model,
+              messages: [{ role: 'user', content: prompt }],
+              response_format: { type: "json_object" },
+              temperature: 0.1
+            })
+          });
+          if (!res.ok) throw new Error('AI 服务请求失败');
+          const data = await res.json();
+          parsed = JSON.parse(data.choices[0].message.content);
+        } else {
+          statusEl.textContent = `使用内置规则分类中 (${unorganized.length} 个)...`;
+          // Local rule-based categorizer
+          const rules = [
+            { keywords: ['github', 'gitlab', 'npm', 'react', 'vue', 'python', 'javascript', 'typescript', 'developer', '编程', '代码', '开发', '程序员', '算法', 'leetcode', 'api'], category: '技术与开发' },
+            { keywords: ['figma', 'dribbble', 'behance', 'pinterest', '设计', '素材', '字体', 'color', 'ui/ux', '插画'], category: '设计与创意' },
+            { keywords: ['youtube', 'bilibili', 'netflix', 'youku', 'iqiyi', '视频', '影视', '电影', 'music', '网易云', '音乐', 'podcast', '播客'], category: '影音与娱乐' },
+            { keywords: ['medium', 'zhihu', '知乎', 'news', '新闻', 'blog', '博客', '文章', '简书', '阅读'], category: '阅读与资讯' },
+            { keywords: ['twitter', 'weibo', '微博', 'reddit', 'v2ex', '论坛', '贴吧', 'facebook', 'instagram', '社交'], category: '社交与社区' },
+            { keywords: ['google', 'baidu', 'bing', 'search', '搜索', '翻译', 'translate', '工具', 'tool', 'json', '计算器', '在线'], category: '效率与工具' },
+            { keywords: ['taobao', '淘宝', 'jd', '京东', '购物', 'buy', 'amazon', '拼多多', '闲鱼'], category: '购物与消费' },
+            { keywords: ['wiki', 'baike', '百科', '教程', 'tutorial', 'learn', '学习', '课', 'course'], category: '知识与学习' }
+          ];
+          for (const b of unorganized) {
+            const combined = `${b.title || ''} ${b.url || ''}`.toLowerCase();
+            let catName = '其他未分类';
+            for (const rule of rules) {
+              if (rule.keywords.some(k => combined.includes(k))) {
+                catName = rule.category;
+                break;
+              }
+            }
+            parsed[b.id] = catName;
+          }
+        }
         
         statusEl.textContent = '正在重新组织书签树...';
-        
         const bookmarksBarId = '1';
         
         for (const [bookmarkId, categoryName] of Object.entries(parsed)) {

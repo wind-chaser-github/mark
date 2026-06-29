@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { getStore, setStore, Category, Bookmark } from '@/lib/store';
 import { v4 as uuidv4 } from 'uuid';
 
+import { autoCategorize } from '@/lib/categorizer';
+
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
@@ -65,6 +67,25 @@ export async function POST(request: Request) {
           }
         }
         
+        // If it's still uncategorized (loose bookmark), try rule-based categorization
+        if (categoryId === defaultCat.id) {
+          const autoCatName = autoCategorize(bm.title, bm.url);
+          if (autoCatName) {
+            let autoCat = store.categories.find(c => c.name === autoCatName && c.parentId === null);
+            if (!autoCat) {
+              autoCat = {
+                id: uuidv4(),
+                name: autoCatName,
+                parentId: null,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+              };
+              store.categories.push(autoCat);
+            }
+            categoryId = autoCat.id;
+          }
+        }
+        
         const newBookmark: Bookmark = {
           id: uuidv4(),
           url: bm.url,
@@ -73,7 +94,7 @@ export async function POST(request: Request) {
           tags: [],
           description: categoryId === defaultCat.id ? '__PENDING_AI__' : null,
           rawHtml: null,
-          favicon: null, // Depending on the import format
+          favicon: null,
           createdAt: bm.dateAdded ? new Date(bm.dateAdded).toISOString() : new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };
