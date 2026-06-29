@@ -118,7 +118,7 @@ export default function Home() {
       if (selectedCategory) params.append('categoryId', selectedCategory);
       if (selectedTag) params.append('tagId', selectedTag);
 
-      const res = await fetch(`/api/bookmarks?${params.toString()}`);
+      const res = await fetch(`/api/bookmarks?${params.toString()}`, { cache: 'no-store' });
       const data = await res.json();
       setBookmarks(data);
     } catch (error) {
