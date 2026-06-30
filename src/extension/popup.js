@@ -197,12 +197,13 @@ ${unorganized.map(b => `ID: ${b.id} | Title: ${b.title} | URL: ${b.url}`).join('
   const importBtn = document.getElementById('import-btn');
   if (importBtn) {
     importBtn.addEventListener('click', async () => {
+      const statusEl = document.getElementById('status');
       if (!chrome.bookmarks) {
-        alert("插件没有书签权限！请刷新插件配置。");
+        statusEl.textContent = '❌ 插件没有书签权限';
+        statusEl.className = 'status error';
         return;
       }
       
-      const statusEl = document.getElementById('status');
       const progressContainer = document.getElementById('import-progress');
       const progressBar = document.getElementById('import-bar');
       const saveBtn = document.getElementById('save-btn');
@@ -300,12 +301,13 @@ ${unorganized.map(b => `ID: ${b.id} | Title: ${b.title} | URL: ${b.url}`).join('
   const pullBtn = document.getElementById('pull-btn');
   if (pullBtn) {
     pullBtn.addEventListener('click', async () => {
+      const statusEl = document.getElementById('status');
       if (!chrome.bookmarks) {
-        alert("插件没有书签权限！请刷新插件配置。");
+        statusEl.textContent = '❌ 插件没有书签权限';
+        statusEl.className = 'status error';
         return;
       }
       
-      const statusEl = document.getElementById('status');
       pullBtn.disabled = true;
       statusEl.textContent = '正在从云端拉取书签...';
       statusEl.className = 'status loading';
