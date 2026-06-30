@@ -2,6 +2,27 @@
 
 const browserAPI = window.browser || window.chrome;
 
+const bgBookmarks = new Proxy({}, {
+  get(target, prop) {
+    return async (...args) => {
+      if (browserAPI.bookmarks && browserAPI.bookmarks[prop]) {
+        return browserAPI.bookmarks[prop](...args);
+      }
+      return new Promise((resolve, reject) => {
+        browserAPI.runtime.sendMessage({ type: 'BOOKMARK_API', method: prop, args }, (response) => {
+          if (browserAPI.runtime.lastError) {
+            return reject(new Error(browserAPI.runtime.lastError.message));
+          }
+          if (response && response.error) {
+            return reject(new Error(response.error));
+          }
+          resolve(response ? response.result : undefined);
+        });
+      });
+    };
+  }
+});
+
 async function saveBookmark(tab, btn, statusEl, config) {
   try {
     let rawDescription = '';
@@ -97,7 +118,7 @@ document.addEventListener('DOMContentLoaded', () => {
       statusEl.className = 'status loading';
       
       try {
-        const tree = await browserAPI.bookmarks.getTree();
+        const tree = await bgBookmarks.getTree();
         // 查找书签栏(id='1') 和其他书签(id='2')下的直接子节点
         const unorganized = [];
         const rootNodes = tree[0].children || [];
@@ -175,13 +196,13 @@ ${unorganized.map(b => `ID: ${b.id} | Title: ${b.title} | URL: ${b.url}`).join('
         const bookmarksBarId = '1';
         
         for (const [bookmarkId, categoryName] of Object.entries(parsed)) {
-          let barChildren = await browserAPI.bookmarks.getChildren(bookmarksBarId);
+          let barChildren = await bgBookmarks.getChildren(bookmarksBarId);
           let targetFolder = barChildren.find(c => !c.url && c.title === categoryName);
           
           if (!targetFolder) {
-            targetFolder = await browserAPI.bookmarks.create({ parentId: bookmarksBarId, title: categoryName });
+            targetFolder = await bgBookmarks.create({ parentId: bookmarksBarId, title: categoryName });
           }
-          await browserAPI.bookmarks.move(bookmarkId, { parentId: targetFolder.id });
+          await bgBookmarks.move(bookmarkId, { parentId: targetFolder.id });
         }
         
         statusEl.textContent = '🎉 原生书签整理完成！';
@@ -200,20 +221,19 @@ ${unorganized.map(b => `ID: ${b.id} | Title: ${b.title} | URL: ${b.url}`).join('
   if (importBtn) {
     importBtn.addEventListener('click', async () => {
       const statusEl = document.getElementById('status');
-      
-      if (!browserAPI.bookmarks && browserAPI.permissions) {
-        try { await browserAPI.permissions.request({ permissions: ['bookmarks'] }); } catch(e) {}
-      }
-      
-      if (!browserAPI.bookmarks) {
-        statusEl.textContent = '❌ Safari 尚未开放或允许书签权限';
-        statusEl.className = 'status error';
-        return;
-      }
-      
       const progressContainer = document.getElementById('import-progress');
       const progressBar = document.getElementById('import-bar');
       const saveBtn = document.getElementById('save-btn');
+      
+      try {
+        // Try getting tree via proxy to test if background script can access it
+        const testTree = await bgBookmarks.getTree();
+        if (!testTree) throw new Error("No bookmarks tree returned");
+      } catch (e) {
+        statusEl.textContent = '❌ Safari 背景脚本无书签权限';
+        statusEl.className = 'status error';
+        return;
+      }
       
       importBtn.disabled = true;
       saveBtn.disabled = true;
@@ -223,7 +243,7 @@ ${unorganized.map(b => `ID: ${b.id} | Title: ${b.title} | URL: ${b.url}`).join('
       progressBar.style.width = '0%';
       
       try {
-        const tree = await browserAPI.bookmarks.getTree();
+        const tree = await bgBookmarks.getTree();
         const bookmarks = [];
         
         // Traverse tree to get all bookmarks with URLs
@@ -310,12 +330,12 @@ ${unorganized.map(b => `ID: ${b.id} | Title: ${b.title} | URL: ${b.url}`).join('
     pullBtn.addEventListener('click', async () => {
       const statusEl = document.getElementById('status');
       
-      if (!browserAPI.bookmarks && browserAPI.permissions) {
-        try { await browserAPI.permissions.request({ permissions: ['bookmarks'] }); } catch(e) {}
-      }
-      
-      if (!browserAPI.bookmarks) {
-        statusEl.textContent = '❌ Safari 尚未开放或允许书签权限';
+      try {
+        // Test background access
+        const testTree = await bgBookmarks.getTree();
+        if (!testTree) throw new Error();
+      } catch(e) {
+        statusEl.textContent = '❌ Safari 背景脚本无书签权限';
         statusEl.className = 'status error';
         return;
       }
@@ -337,7 +357,7 @@ ${unorganized.map(b => `ID: ${b.id} | Title: ${b.title} | URL: ${b.url}`).join('
         
         // Build map of local bookmarks by URL
         const localMap = new Map();
-        const tree = await browserAPI.bookmarks.getTree();
+        const tree = await bgBookmarks.getTree();
         
         function traverseLocal(node) {
           if (node.url) {
@@ -393,10 +413,10 @@ ${unorganized.map(b => `ID: ${b.id} | Title: ${b.title} | URL: ${b.url}`).join('
               continue;
             }
             
-            const children = await browserAPI.bookmarks.getChildren(currentParentId);
+            const children = await bgBookmarks.getChildren(currentParentId);
             let found = children.find(c => !c.url && c.title === folderName);
             if (!found) {
-              found = await browserAPI.bookmarks.create({ parentId: currentParentId, title: folderName });
+              found = await bgBookmarks.create({ parentId: currentParentId, title: folderName });
             }
             currentParentId = found.id;
             folderCache[pathKey] = found.id;
@@ -423,7 +443,7 @@ ${unorganized.map(b => `ID: ${b.id} | Title: ${b.title} | URL: ${b.url}`).join('
 
           if (!localMap.has(rb.url)) {
             // Needs to be created
-            await browserAPI.bookmarks.create({
+            await bgBookmarks.create({
               parentId: targetFolderId,
               title: rb.title || rb.url,
               url: rb.url
@@ -436,13 +456,13 @@ ${unorganized.map(b => `ID: ${b.id} | Title: ${b.title} | URL: ${b.url}`).join('
             
             // Check if it's in the wrong folder
             if (localNode.parentId !== targetFolderId) {
-              await browserAPI.bookmarks.move(localNode.id, { parentId: targetFolderId });
+              await bgBookmarks.move(localNode.id, { parentId: targetFolderId });
               moved = true;
             }
 
             // Check if title needs update
             if (rb.title && rb.title !== localNode.title && rb.title !== rb.url) {
-              await browserAPI.bookmarks.update(localNode.id, { title: rb.title });
+              await bgBookmarks.update(localNode.id, { title: rb.title });
               if (!moved) updatedCount++; // Only count once
             }
             if (moved) updatedCount++;

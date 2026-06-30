@@ -1,22 +1,43 @@
 const getConfig = () => {
+  const browserAPI = window.browser || window.chrome;
   return new Promise(resolve => {
-    chrome.storage.local.get({
+    browserAPI.storage.local.get({
       syncUrl: 'http://localhost:3999',
       accessPassword: ''
     }, resolve);
   });
 };
 
+const browserAPI = window.browser || window.chrome;
+
+browserAPI.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.type === 'BOOKMARK_API') {
+    if (!browserAPI.bookmarks) {
+      sendResponse({ error: 'No bookmarks API in background' });
+      return true;
+    }
+    const { method, args } = request;
+    // Call the bookmarks API
+    const apiCall = browserAPI.bookmarks[method](...args);
+    if (apiCall && typeof apiCall.then === 'function') {
+      apiCall.then(result => sendResponse({ result })).catch(err => sendResponse({ error: err.message }));
+    } else {
+      // Some APIs might use callbacks if they are older chrome APIs, but promises are standard in MV3
+      sendResponse({ error: 'Unsupported API call format' });
+    }
+    return true; // Keeps the message channel open for async response
+  }
+});
 const getOfflineQueue = () => {
   return new Promise(resolve => {
-    chrome.storage.local.get({ offlineQueue: [] }, (res) => resolve(res.offlineQueue));
+    browserAPI.storage.local.get({ offlineQueue: [] }, (res) => resolve(res.offlineQueue));
   });
 };
 
 const saveToOfflineQueue = async (actionItem) => {
   const queue = await getOfflineQueue();
   queue.push({ ...actionItem, timestamp: Date.now() });
-  chrome.storage.local.set({ offlineQueue: queue });
+  browserAPI.storage.local.set({ offlineQueue: queue });
 };
 
 const processOfflineQueue = async () => {
@@ -35,7 +56,7 @@ const processOfflineQueue = async () => {
     });
     
     if (res.ok) {
-      chrome.storage.local.set({ offlineQueue: [] });
+      browserAPI.storage.local.set({ offlineQueue: [] });
       console.log(`[Mark.AI] Synced ${queue.length} offline actions to server.`);
     }
   } catch (e) {
@@ -43,18 +64,18 @@ const processOfflineQueue = async () => {
   }
 };
 
-chrome.alarms.create("sync-offline-queue", { periodInMinutes: 5 });
-chrome.alarms.onAlarm.addListener((alarm) => {
+browserAPI.alarms.create("sync-offline-queue", { periodInMinutes: 5 });
+browserAPI.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === "sync-offline-queue") {
     processOfflineQueue();
   }
 });
 
-chrome.commands.onCommand.addListener(async (command) => {
+browserAPI.commands.onCommand.addListener(async (command) => {
   if (command === 'save-bookmark') {
-    let [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    let [tab] = await browserAPI.tabs.query({ active: true, currentWindow: true });
     if (tab && tab.url && tab.url.startsWith('http')) {
-      chrome.tabs.sendMessage(tab.id, { action: "show_toast", message: "正在收藏...", type: "loading" }).catch(() => {});
+      browserAPI.tabs.sendMessage(tab.id, { action: "show_toast", message: "正在收藏...", type: "loading" }).catch(() => {});
 
       let rawDescription = '';
       let favicon = '';
@@ -99,12 +120,12 @@ chrome.commands.onCommand.addListener(async (command) => {
   }
 });
 
-chrome.bookmarks.onCreated.addListener(async (id, bookmark) => {
+browserAPI.bookmarks.onCreated.addListener(async (id, bookmark) => {
   if (bookmark.url && bookmark.url.startsWith('http')) {
     let folderPath = [];
     let currentParentId = bookmark.parentId;
     while (currentParentId) {
-      const parentNodes = await chrome.bookmarks.get(currentParentId);
+      const parentNodes = await browserAPI.bookmarks.get(currentParentId);
       if (parentNodes && parentNodes.length > 0) {
         const parent = parentNodes[0];
         if (!parent.parentId) break;
@@ -139,7 +160,7 @@ chrome.bookmarks.onCreated.addListener(async (id, bookmark) => {
   }
 });
 
-chrome.bookmarks.onRemoved.addListener(async (id, removeInfo) => {
+browserAPI.bookmarks.onRemoved.addListener(async (id, removeInfo) => {
   const actionData = {
     action: 'delete',
     url: removeInfo.node.url,
@@ -164,15 +185,15 @@ chrome.bookmarks.onRemoved.addListener(async (id, removeInfo) => {
   }
 });
 
-chrome.bookmarks.onMoved.addListener(async (id, moveInfo) => {
-  const nodes = await chrome.bookmarks.get(id);
+browserAPI.bookmarks.onMoved.addListener(async (id, moveInfo) => {
+  const nodes = await browserAPI.bookmarks.get(id);
   const bookmark = nodes[0];
   if (!bookmark || !bookmark.url) return;
 
   let folderPath = [];
   let currentParentId = moveInfo.parentId;
   while (currentParentId) {
-    const parentNodes = await chrome.bookmarks.get(currentParentId);
+    const parentNodes = await browserAPI.bookmarks.get(currentParentId);
     if (parentNodes && parentNodes.length > 0) {
       const parent = parentNodes[0];
       if (!parent.parentId) break;
@@ -204,7 +225,7 @@ chrome.bookmarks.onMoved.addListener(async (id, moveInfo) => {
   }
 });
 
-chrome.bookmarks.onChanged.addListener(async (id, changeInfo) => {
+browserAPI.bookmarks.onChanged.addListener(async (id, changeInfo) => {
   const actionData = {
     action: 'update',
     url: changeInfo.url,
