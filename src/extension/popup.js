@@ -392,7 +392,7 @@ ${unorganized.map(b => `ID: ${b.id} | Title: ${b.title} | URL: ${b.url}`).join('
 
         // Pre-create all category folders so even empty ones sync
         for (const cat of catMap.values()) {
-          const pathArray = ['MarkAI同步', ...getCategoryPath(cat.id)];
+          const pathArray = getCategoryPath(cat.id);
           await getOrCreateFolder(pathArray);
         }
 
@@ -403,10 +403,10 @@ ${unorganized.map(b => `ID: ${b.id} | Title: ${b.title} | URL: ${b.url}`).join('
             // Needs to be created
             let targetFolderId = barId;
             if (rb.categoryId && catMap.has(rb.categoryId)) {
-              const pathArray = ['MarkAI同步', ...getCategoryPath(rb.categoryId)];
+              const pathArray = getCategoryPath(rb.categoryId);
               targetFolderId = await getOrCreateFolder(pathArray);
             } else {
-              targetFolderId = await getOrCreateFolder(['MarkAI同步', '未分类']);
+              targetFolderId = await getOrCreateFolder(['未分类']);
             }
             await chrome.bookmarks.create({
               parentId: targetFolderId,
