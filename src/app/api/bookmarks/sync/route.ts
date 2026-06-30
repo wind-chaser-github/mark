@@ -145,7 +145,7 @@ export async function processSyncAction(actionData: any, store: AppData) {
         store.bookmarks[existingIndex].description = bookmarkDesc;
       }
       if (favicon) store.bookmarks[existingIndex].favicon = favicon;
-      store.bookmarks[existingIndex].categoryId = finalCategoryId;
+      // DO NOT OVERWRITE categoryId here! Prevents bounce-back folder creation.
       if (tagsData.length > 0) store.bookmarks[existingIndex].tags = tagsData;
       store.bookmarks[existingIndex].updatedAt = new Date(actionTime).toISOString();
     }
