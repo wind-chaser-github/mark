@@ -399,15 +399,16 @@ ${unorganized.map(b => `ID: ${b.id} | Title: ${b.title} | URL: ${b.url}`).join('
         for (const rb of remoteBookmarks) {
           if (!rb.url) continue;
           
+          let targetFolderId = barId;
+          if (rb.categoryId && catMap.has(rb.categoryId)) {
+            const pathArray = getCategoryPath(rb.categoryId);
+            targetFolderId = await getOrCreateFolder(pathArray);
+          } else {
+            targetFolderId = await getOrCreateFolder(['未分类']);
+          }
+
           if (!localMap.has(rb.url)) {
             // Needs to be created
-            let targetFolderId = barId;
-            if (rb.categoryId && catMap.has(rb.categoryId)) {
-              const pathArray = getCategoryPath(rb.categoryId);
-              targetFolderId = await getOrCreateFolder(pathArray);
-            } else {
-              targetFolderId = await getOrCreateFolder(['未分类']);
-            }
             await chrome.bookmarks.create({
               parentId: targetFolderId,
               title: rb.title || rb.url,
@@ -415,12 +416,22 @@ ${unorganized.map(b => `ID: ${b.id} | Title: ${b.title} | URL: ${b.url}`).join('
             });
             addedCount++;
           } else {
-            // Exists locally, check if we need to update title
+            // Exists locally
             const localNode = localMap.get(rb.url);
+            let moved = false;
+            
+            // Check if it's in the wrong folder
+            if (localNode.parentId !== targetFolderId) {
+              await chrome.bookmarks.move(localNode.id, { parentId: targetFolderId });
+              moved = true;
+            }
+
+            // Check if title needs update
             if (rb.title && rb.title !== localNode.title && rb.title !== rb.url) {
               await chrome.bookmarks.update(localNode.id, { title: rb.title });
-              updatedCount++;
+              if (!moved) updatedCount++; // Only count once
             }
+            if (moved) updatedCount++;
           }
         }
         
