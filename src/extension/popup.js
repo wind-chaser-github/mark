@@ -122,7 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
           statusEl.textContent = `交由 AI 分类中 (${unorganized.length} 个)...`;
           const prompt = `你是一个智能书签分类助手。这里有一批杂乱的书签，请根据它们的标题和 URL 进行分类。
 要求：
-1. 返回一个 JSON，键为书签的 ID，值为你为其分配的分类名称（如：工具、开发、设计、阅读等）。
+1. 返回一个 JSON，键为书签的 ID，值为你为其分配的分类名称（如：工具、开发、设计、阅读等）。对于无法分类的，请统一使用“未分类”。
 2. 分类名称尽量精简、普适。
 书签列表：
 ${unorganized.map(b => `ID: ${b.id} | Title: ${b.title} | URL: ${b.url}`).join('\n')}`;
@@ -158,7 +158,7 @@ ${unorganized.map(b => `ID: ${b.id} | Title: ${b.title} | URL: ${b.url}`).join('
           ];
           for (const b of unorganized) {
             const combined = `${b.title || ''} ${b.url || ''}`.toLowerCase();
-            let catName = '其他未分类';
+            let catName = '未分类';
             for (const rule of rules) {
               if (rule.keywords.some(k => combined.includes(k))) {
                 catName = rule.category;
