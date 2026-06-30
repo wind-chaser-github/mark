@@ -341,6 +341,30 @@ ${unorganized.map(b => `ID: ${b.id} | Title: ${b.title} | URL: ${b.url}`).join('
         let addedCount = 0;
         let updatedCount = 0;
 
+        // Fetch categories to recreate full hierarchy
+        const catRes = await fetch(`${config.syncUrl}/api/categories`, {
+          method: 'GET',
+          headers: { 'Authorization': `Bearer ${config.accessPassword}` }
+        });
+        let catMap = new Map();
+        if (catRes.ok) {
+          const categoriesData = await catRes.json();
+          const flatCategories = categoriesData.flatCategories || [];
+          flatCategories.forEach(c => catMap.set(c.id, c));
+        }
+
+        function getCategoryPath(catId) {
+          const path = [];
+          let currentId = catId;
+          while (currentId) {
+            const cat = catMap.get(currentId);
+            if (!cat) break;
+            path.unshift(cat.name);
+            currentId = cat.parentId;
+          }
+          return path;
+        }
+
         // Folder cache to avoid recreating
         const folderCache = {};
         
@@ -366,14 +390,21 @@ ${unorganized.map(b => `ID: ${b.id} | Title: ${b.title} | URL: ${b.url}`).join('
           return currentParentId;
         }
 
+        // Pre-create all category folders so even empty ones sync
+        for (const cat of catMap.values()) {
+          const pathArray = ['MarkAI同步', ...getCategoryPath(cat.id)];
+          await getOrCreateFolder(pathArray);
+        }
+
         for (const rb of remoteBookmarks) {
           if (!rb.url) continue;
           
           if (!localMap.has(rb.url)) {
             // Needs to be created
             let targetFolderId = barId;
-            if (rb.category && rb.category.name && rb.category.name !== '未分类') {
-              targetFolderId = await getOrCreateFolder(['MarkAI同步', rb.category.name]);
+            if (rb.categoryId && catMap.has(rb.categoryId)) {
+              const pathArray = ['MarkAI同步', ...getCategoryPath(rb.categoryId)];
+              targetFolderId = await getOrCreateFolder(pathArray);
             } else {
               targetFolderId = await getOrCreateFolder(['MarkAI同步', '未分类']);
             }
