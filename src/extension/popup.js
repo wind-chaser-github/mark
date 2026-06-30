@@ -296,3 +296,111 @@ ${unorganized.map(b => `ID: ${b.id} | Title: ${b.title} | URL: ${b.url}`).join('
     });
   }
 });
+
+  const pullBtn = document.getElementById('pull-btn');
+  if (pullBtn) {
+    pullBtn.addEventListener('click', async () => {
+      if (!chrome.bookmarks) {
+        alert("插件没有书签权限！请刷新插件配置。");
+        return;
+      }
+      
+      const statusEl = document.getElementById('status');
+      pullBtn.disabled = true;
+      statusEl.textContent = '正在从云端拉取书签...';
+      statusEl.className = 'status loading';
+      
+      try {
+        const config = await new Promise(r => chrome.storage.local.get({ syncUrl: 'http://localhost:3999', accessPassword: '' }, r));
+        const res = await fetch(`${config.syncUrl}/api/bookmarks`, {
+          method: 'GET',
+          headers: { 'Authorization': `Bearer ${config.accessPassword}` }
+        });
+        if (!res.ok) throw new Error('网络请求失败');
+        const remoteBookmarks = await res.json();
+        
+        statusEl.textContent = '比对本地书签树...';
+        
+        // Build map of local bookmarks by URL
+        const localMap = new Map();
+        const tree = await chrome.bookmarks.getTree();
+        
+        function traverseLocal(node) {
+          if (node.url) {
+            localMap.set(node.url, node);
+          }
+          if (node.children) {
+            node.children.forEach(traverseLocal);
+          }
+        }
+        traverseLocal(tree[0]);
+        
+        // We'll put new bookmarks in the standard 'Other Bookmarks' (id: '2') if we can't recreate the folder path easily, 
+        // or we try to recreate folder path. For simplicity and stability, we recreate the folder under Bookmarks Bar (id: '1').
+        const barId = '1'; 
+        let addedCount = 0;
+        let updatedCount = 0;
+
+        // Folder cache to avoid recreating
+        const folderCache = {};
+        
+        async function getOrCreateFolder(folderPathArray) {
+          let currentParentId = barId;
+          let pathKey = '';
+          for (const folderName of folderPathArray) {
+            if (!folderName) continue;
+            pathKey += '/' + folderName;
+            if (folderCache[pathKey]) {
+              currentParentId = folderCache[pathKey];
+              continue;
+            }
+            
+            const children = await chrome.bookmarks.getChildren(currentParentId);
+            let found = children.find(c => !c.url && c.title === folderName);
+            if (!found) {
+              found = await chrome.bookmarks.create({ parentId: currentParentId, title: folderName });
+            }
+            currentParentId = found.id;
+            folderCache[pathKey] = found.id;
+          }
+          return currentParentId;
+        }
+
+        for (const rb of remoteBookmarks) {
+          if (!rb.url) continue;
+          
+          if (!localMap.has(rb.url)) {
+            // Needs to be created
+            let targetFolderId = barId;
+            if (rb.category && rb.category.name && rb.category.name !== '未分类') {
+              targetFolderId = await getOrCreateFolder(['MarkAI同步', rb.category.name]);
+            } else {
+              targetFolderId = await getOrCreateFolder(['MarkAI同步', '未分类']);
+            }
+            await chrome.bookmarks.create({
+              parentId: targetFolderId,
+              title: rb.title || rb.url,
+              url: rb.url
+            });
+            addedCount++;
+          } else {
+            // Exists locally, check if we need to update title
+            const localNode = localMap.get(rb.url);
+            if (rb.title && rb.title !== localNode.title && rb.title !== rb.url) {
+              await chrome.bookmarks.update(localNode.id, { title: rb.title });
+              updatedCount++;
+            }
+          }
+        }
+        
+        statusEl.textContent = `🎉 拉取完成！新增: ${addedCount}, 更新: ${updatedCount}`;
+        statusEl.className = 'status success';
+      } catch (e) {
+        console.error(e);
+        statusEl.textContent = '❌ 拉取失败: ' + e.message;
+        statusEl.className = 'status error';
+      }
+      
+      pullBtn.disabled = false;
+    });
+  }

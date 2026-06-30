@@ -203,3 +203,28 @@ chrome.bookmarks.onMoved.addListener(async (id, moveInfo) => {
     await saveToOfflineQueue(actionData);
   }
 });
+
+chrome.bookmarks.onChanged.addListener(async (id, changeInfo) => {
+  const actionData = {
+    action: 'update',
+    url: changeInfo.url,
+    title: changeInfo.title,
+    updatedAt: new Date().toISOString()
+  };
+  
+  const config = await getConfig();
+  try {
+    const res = await fetch(`${config.syncUrl}/api/bookmarks/sync`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${config.accessPassword}`
+      },
+      body: JSON.stringify(actionData)
+    });
+    if (res.ok) processOfflineQueue();
+    else throw new Error();
+  } catch (e) {
+    await saveToOfflineQueue(actionData);
+  }
+});

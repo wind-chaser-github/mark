@@ -23,7 +23,8 @@ export async function POST(request: Request) {
 }
 
 export async function processSyncAction(actionData: any, store: AppData) {
-  const { action, url, title, rawDescription, favicon, folders } = actionData;
+  const { action, url, title, rawDescription, favicon, folders, dateAdded, updatedAt } = actionData;
+  const actionTime = updatedAt ? new Date(updatedAt).getTime() : Date.now();
 
   if (action === 'delete') {
     store.bookmarks = store.bookmarks.filter(b => b.url !== url);
@@ -71,12 +72,27 @@ export async function processSyncAction(actionData: any, store: AppData) {
   }
 
   if (action === 'move') {
-    store.bookmarks.forEach(b => {
-      if (b.url === url) {
-        b.categoryId = categoryId;
-        b.updatedAt = new Date().toISOString();
+    const existingIndex = store.bookmarks.findIndex(b => b.url === url);
+    if (existingIndex !== -1) {
+      const existingTime = new Date(store.bookmarks[existingIndex].updatedAt).getTime();
+      if (actionTime >= existingTime) {
+        store.bookmarks[existingIndex].categoryId = categoryId;
+        store.bookmarks[existingIndex].updatedAt = new Date(actionTime).toISOString();
       }
-    });
+    }
+    return;
+  }
+
+  if (action === 'update') {
+    const existingIndex = store.bookmarks.findIndex(b => b.url === url);
+    if (existingIndex !== -1) {
+      const existingTime = new Date(store.bookmarks[existingIndex].updatedAt).getTime();
+      if (actionTime >= existingTime) {
+        if (title) store.bookmarks[existingIndex].title = title;
+        if (categoryId) store.bookmarks[existingIndex].categoryId = categoryId;
+        store.bookmarks[existingIndex].updatedAt = new Date(actionTime).toISOString();
+      }
+    }
     return;
   }
 
@@ -85,6 +101,16 @@ export async function processSyncAction(actionData: any, store: AppData) {
     let bookmarkDesc = null;
     let finalCategoryId = categoryId;
     let tagsData: string[] = [];
+
+    const existingIndex = store.bookmarks.findIndex(b => b.url === url);
+    const existing = existingIndex !== -1 ? store.bookmarks[existingIndex] : null;
+    
+    // Check timestamp before overriding
+    const existingTime = existing ? new Date(existing.updatedAt).getTime() : 0;
+    if (existing && actionTime < existingTime) {
+      // Incoming action is older than our database record, ignore it (deduplication / conflict resolution)
+      return;
+    }
 
     if (action === 'create_with_meta') {
       const metadata = await extractMetadataViaAI(url, title, rawDescription, actionData.syncCode);
@@ -100,8 +126,7 @@ export async function processSyncAction(actionData: any, store: AppData) {
       }
     }
 
-    const existingIndex = store.bookmarks.findIndex(b => b.url === url);
-    if (existingIndex === -1) {
+    if (!existing) {
       store.bookmarks.push({
         id: uuidv4(),
         url,
@@ -111,16 +136,18 @@ export async function processSyncAction(actionData: any, store: AppData) {
         favicon: favicon || null,
         categoryId: finalCategoryId,
         tags: tagsData,
-        createdAt: actionData.dateAdded ? new Date(actionData.dateAdded).toISOString() : new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        createdAt: dateAdded ? new Date(dateAdded).toISOString() : new Date().toISOString(),
+        updatedAt: new Date(actionTime).toISOString()
       });
-    } else if (action === 'create_with_meta') {
+    } else {
       store.bookmarks[existingIndex].title = bookmarkTitle;
-      store.bookmarks[existingIndex].description = bookmarkDesc;
-      store.bookmarks[existingIndex].favicon = favicon || null;
+      if (bookmarkDesc !== '__PENDING_AI__') {
+        store.bookmarks[existingIndex].description = bookmarkDesc;
+      }
+      if (favicon) store.bookmarks[existingIndex].favicon = favicon;
       store.bookmarks[existingIndex].categoryId = finalCategoryId;
-      store.bookmarks[existingIndex].tags = tagsData;
-      store.bookmarks[existingIndex].updatedAt = new Date().toISOString();
+      if (tagsData.length > 0) store.bookmarks[existingIndex].tags = tagsData;
+      store.bookmarks[existingIndex].updatedAt = new Date(actionTime).toISOString();
     }
   }
 }

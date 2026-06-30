@@ -85,6 +85,11 @@ export default function Home() {
   // Edit/Add Category
   const [catModal, setCatModal] = useState<{show: boolean, type: 'add'|'edit'|'addSub', targetId?: string, name: string}>({show: false, type: 'add', name: ''});
 
+  // Add Bookmark Modal
+  const [addModal, setAddModal] = useState(false);
+  const [addUrl, setAddUrl] = useState('');
+  const [addingBookmark, setAddingBookmark] = useState(false);
+
   // Batch Move Modal
   const [moveModal, setMoveModal] = useState(false);
   const [moveToCat, setMoveToCat] = useState('');
@@ -213,6 +218,29 @@ export default function Home() {
       fetchSidebarData();
       fetchBookmarks();
     } catch(e) {}
+  };
+
+  const handleAddBookmark = async () => {
+    if (!addUrl || !addUrl.startsWith('http')) return alert('请输入合法的 URL (http/https)');
+    setAddingBookmark(true);
+    try {
+      const res = await fetch('/api/bookmarks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: addUrl, rawTitle: addUrl })
+      });
+      if (res.ok) {
+        setAddModal(false);
+        setAddUrl('');
+        fetchBookmarks();
+        fetchSidebarData();
+      } else {
+        const err = await res.json();
+        alert('添加失败: ' + err.error);
+      }
+    } finally {
+      setAddingBookmark(false);
+    }
   };
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -382,6 +410,9 @@ export default function Home() {
                 已选 {selectedIds.size} 项
               </Badge>
             )}
+            <button onClick={() => setAddModal(true)} className="inline-flex items-center justify-center rounded-full border border-white/20 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-medium h-12 px-6 hover:bg-indigo-500/20 transition-all text-sm">
+              + 添加书签
+            </button>
             <input type="file" id="import-upload" className="hidden" accept=".html" onChange={handleImport} disabled={importing} />
             <label htmlFor="import-upload" className={`cursor-pointer inline-flex items-center justify-center rounded-full border border-white/20 bg-white/50 shadow-sm text-sm font-medium h-12 px-6 hover:bg-white/80 transition-all ${importing ? 'opacity-50 pointer-events-none' : ''}`}>
               {importing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
@@ -522,6 +553,25 @@ export default function Home() {
             <div className="mt-8 flex justify-end gap-3">
               <Button variant="outline" onClick={() => setEditBookmark(null)}>取消</Button>
               <Button onClick={saveEdit}>保存</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Bookmark Modal */}
+      {addModal && (
+        <div className="fixed inset-0 bg-zinc-900/40 dark:bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-2xl border border-white/20 rounded-2xl shadow-2xl w-full max-w-md p-8">
+            <h3 className="text-xl font-bold mb-6">添加新书签</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm mb-1">链接 (URL)</label>
+                <Input value={addUrl} onChange={e => setAddUrl(e.target.value)} placeholder="https://..." autoFocus />
+              </div>
+            </div>
+            <div className="mt-8 flex justify-end gap-3">
+              <Button variant="outline" onClick={() => {setAddModal(false); setAddUrl('')}}>取消</Button>
+              <Button onClick={handleAddBookmark} disabled={addingBookmark}>{addingBookmark ? '添加中...' : '确认添加'}</Button>
             </div>
           </div>
         </div>

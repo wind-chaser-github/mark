@@ -110,8 +110,13 @@
       一键深度解析当前网页内容，并存入你的专属知识库。
     </p>
     <button id="save-btn" class="btn">收录当前网页</button>
-    <button id="organize-btn" class="btn btn-outline" style="color: #34d399; border-color: rgba(52, 211, 153, 0.4);">🔮 自动整理散落书签</button>
-    <button id="import-btn" class="btn btn-outline">一键导入所有浏览器书签</button>
+    <button id="organize-btn" class="btn btn-outline" style="color: #34d399; border-color: rgba(52, 211, 153, 0.4);">🔮 本地自动整理分类</button>
+    
+    <div style="display: flex; gap: 8px; margin-top: -8px;">
+      <button id="import-btn" class="btn btn-outline" style="flex: 1; padding: 10px 8px; font-size: 12px; margin-top: 0;" title="只新增更新，不删除网页已有数据">⬆️ 推送到网页</button>
+      <button id="pull-btn" class="btn btn-outline" style="flex: 1; padding: 10px 8px; font-size: 12px; margin-top: 0; color: #60a5fa; border-color: rgba(96, 165, 250, 0.4);" title="只新增更新，不删除本地已有数据">⬇️ 拉取到本地</button>
+    </div>
+
     <div id="status" class="status"></div>
     <div id="import-progress" style="display: none; background: rgba(255,255,255,0.1); height: 4px; border-radius: 2px; width: 100%; margin-top: -8px; overflow: hidden;">
       <div id="import-bar" style="background: linear-gradient(to right, #818cf8, #c084fc); width: 0%; height: 100%; transition: width 0.3s ease;"></div>
