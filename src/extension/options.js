@@ -1,3 +1,5 @@
+const browserAPI = window.browser || window.chrome;
+
 const saveOptions = () => {
   const apiKey = document.getElementById('apiKey').value;
   const baseUrl = document.getElementById('baseUrl').value;
@@ -5,7 +7,7 @@ const saveOptions = () => {
   const syncUrl = document.getElementById('syncUrl').value;
   const accessPassword = document.getElementById('accessPassword').value;
 
-  chrome.storage.local.set(
+  browserAPI.storage.local.set(
     { apiKey, baseUrl, model, syncUrl, accessPassword },
     () => {
       const status = document.getElementById('status');
@@ -18,7 +20,7 @@ const saveOptions = () => {
 };
 
 const restoreOptions = () => {
-  chrome.storage.local.get(
+  browserAPI.storage.local.get(
     { 
       apiKey: '', 
       baseUrl: 'https://api.openai.com/v1', 

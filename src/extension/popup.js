@@ -1,5 +1,7 @@
 // Removed hardcoded API_URL
 
+const browserAPI = window.browser || window.chrome;
+
 async function saveBookmark(tab, btn, statusEl, config) {
   try {
     let rawDescription = '';
@@ -7,7 +9,7 @@ async function saveBookmark(tab, btn, statusEl, config) {
 
     // Ask content script for deep data if possible
     try {
-      const response = await chrome.tabs.sendMessage(tab.id, { action: "extract_metadata" });
+      const response = await browserAPI.tabs.sendMessage(tab.id, { action: "extract_metadata" });
       if (response) {
         rawDescription = (response.metaDescription || '') + '\n' + (response.mainText || '');
         favicon = response.favicon || '';
@@ -71,8 +73,8 @@ document.addEventListener('DOMContentLoaded', () => {
       statusEl.textContent = '';
       statusEl.className = 'status loading';
       
-      const config = await new Promise(r => chrome.storage.local.get({ syncUrl: 'http://localhost:3999', accessPassword: '' }, r));
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      const config = await new Promise(r => browserAPI.storage.local.get({ syncUrl: 'http://localhost:3999', accessPassword: '' }, r));
+      const [tab] = await browserAPI.tabs.query({ active: true, currentWindow: true });
       if (tab && tab.url && tab.url.startsWith('http')) {
         await saveBookmark(tab, btn, statusEl, config);
       } else {
@@ -85,7 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const organizeBtn = document.getElementById('organize-btn');
   if (organizeBtn) {
     organizeBtn.addEventListener('click', async () => {
-      const config = await new Promise(r => chrome.storage.local.get({
+      const config = await new Promise(r => browserAPI.storage.local.get({
         apiKey: '', baseUrl: 'https://api.openai.com/v1', model: 'gpt-3.5-turbo'
       }, r));
       
@@ -95,7 +97,7 @@ document.addEventListener('DOMContentLoaded', () => {
       statusEl.className = 'status loading';
       
       try {
-        const tree = await chrome.bookmarks.getTree();
+        const tree = await browserAPI.bookmarks.getTree();
         // 查找书签栏(id='1') 和其他书签(id='2')下的直接子节点
         const unorganized = [];
         const rootNodes = tree[0].children || [];
@@ -173,13 +175,13 @@ ${unorganized.map(b => `ID: ${b.id} | Title: ${b.title} | URL: ${b.url}`).join('
         const bookmarksBarId = '1';
         
         for (const [bookmarkId, categoryName] of Object.entries(parsed)) {
-          let barChildren = await chrome.bookmarks.getChildren(bookmarksBarId);
+          let barChildren = await browserAPI.bookmarks.getChildren(bookmarksBarId);
           let targetFolder = barChildren.find(c => !c.url && c.title === categoryName);
           
           if (!targetFolder) {
-            targetFolder = await chrome.bookmarks.create({ parentId: bookmarksBarId, title: categoryName });
+            targetFolder = await browserAPI.bookmarks.create({ parentId: bookmarksBarId, title: categoryName });
           }
-          await chrome.bookmarks.move(bookmarkId, { parentId: targetFolder.id });
+          await browserAPI.bookmarks.move(bookmarkId, { parentId: targetFolder.id });
         }
         
         statusEl.textContent = '🎉 原生书签整理完成！';
@@ -198,8 +200,13 @@ ${unorganized.map(b => `ID: ${b.id} | Title: ${b.title} | URL: ${b.url}`).join('
   if (importBtn) {
     importBtn.addEventListener('click', async () => {
       const statusEl = document.getElementById('status');
-      if (!chrome.bookmarks) {
-        statusEl.textContent = '❌ 插件没有书签权限';
+      
+      if (!browserAPI.bookmarks && browserAPI.permissions) {
+        try { await browserAPI.permissions.request({ permissions: ['bookmarks'] }); } catch(e) {}
+      }
+      
+      if (!browserAPI.bookmarks) {
+        statusEl.textContent = '❌ Safari 尚未开放或允许书签权限';
         statusEl.className = 'status error';
         return;
       }
@@ -216,7 +223,7 @@ ${unorganized.map(b => `ID: ${b.id} | Title: ${b.title} | URL: ${b.url}`).join('
       progressBar.style.width = '0%';
       
       try {
-        const tree = await chrome.bookmarks.getTree();
+        const tree = await browserAPI.bookmarks.getTree();
         const bookmarks = [];
         
         // Traverse tree to get all bookmarks with URLs
@@ -260,7 +267,7 @@ ${unorganized.map(b => `ID: ${b.id} | Title: ${b.title} | URL: ${b.url}`).join('
         for (let i = 0; i < bookmarks.length; i += batchSize) {
           const batch = bookmarks.slice(i, i + batchSize);
           
-          const config = await new Promise(r => chrome.storage.local.get({ syncUrl: 'http://localhost:3999', accessPassword: '' }, r));
+          const config = await new Promise(r => browserAPI.storage.local.get({ syncUrl: 'http://localhost:3999', accessPassword: '' }, r));
           try {
             const res = await fetch(`${config.syncUrl}/api/bookmarks/bulk-import`, {
               method: 'POST',
@@ -302,8 +309,13 @@ ${unorganized.map(b => `ID: ${b.id} | Title: ${b.title} | URL: ${b.url}`).join('
   if (pullBtn) {
     pullBtn.addEventListener('click', async () => {
       const statusEl = document.getElementById('status');
-      if (!chrome.bookmarks) {
-        statusEl.textContent = '❌ 插件没有书签权限';
+      
+      if (!browserAPI.bookmarks && browserAPI.permissions) {
+        try { await browserAPI.permissions.request({ permissions: ['bookmarks'] }); } catch(e) {}
+      }
+      
+      if (!browserAPI.bookmarks) {
+        statusEl.textContent = '❌ Safari 尚未开放或允许书签权限';
         statusEl.className = 'status error';
         return;
       }
@@ -313,7 +325,7 @@ ${unorganized.map(b => `ID: ${b.id} | Title: ${b.title} | URL: ${b.url}`).join('
       statusEl.className = 'status loading';
       
       try {
-        const config = await new Promise(r => chrome.storage.local.get({ syncUrl: 'http://localhost:3999', accessPassword: '' }, r));
+        const config = await new Promise(r => browserAPI.storage.local.get({ syncUrl: 'http://localhost:3999', accessPassword: '' }, r));
         const res = await fetch(`${config.syncUrl}/api/bookmarks`, {
           method: 'GET',
           headers: { 'Authorization': `Bearer ${config.accessPassword}` }
@@ -325,7 +337,7 @@ ${unorganized.map(b => `ID: ${b.id} | Title: ${b.title} | URL: ${b.url}`).join('
         
         // Build map of local bookmarks by URL
         const localMap = new Map();
-        const tree = await chrome.bookmarks.getTree();
+        const tree = await browserAPI.bookmarks.getTree();
         
         function traverseLocal(node) {
           if (node.url) {
@@ -381,10 +393,10 @@ ${unorganized.map(b => `ID: ${b.id} | Title: ${b.title} | URL: ${b.url}`).join('
               continue;
             }
             
-            const children = await chrome.bookmarks.getChildren(currentParentId);
+            const children = await browserAPI.bookmarks.getChildren(currentParentId);
             let found = children.find(c => !c.url && c.title === folderName);
             if (!found) {
-              found = await chrome.bookmarks.create({ parentId: currentParentId, title: folderName });
+              found = await browserAPI.bookmarks.create({ parentId: currentParentId, title: folderName });
             }
             currentParentId = found.id;
             folderCache[pathKey] = found.id;
@@ -411,7 +423,7 @@ ${unorganized.map(b => `ID: ${b.id} | Title: ${b.title} | URL: ${b.url}`).join('
 
           if (!localMap.has(rb.url)) {
             // Needs to be created
-            await chrome.bookmarks.create({
+            await browserAPI.bookmarks.create({
               parentId: targetFolderId,
               title: rb.title || rb.url,
               url: rb.url
@@ -424,13 +436,13 @@ ${unorganized.map(b => `ID: ${b.id} | Title: ${b.title} | URL: ${b.url}`).join('
             
             // Check if it's in the wrong folder
             if (localNode.parentId !== targetFolderId) {
-              await chrome.bookmarks.move(localNode.id, { parentId: targetFolderId });
+              await browserAPI.bookmarks.move(localNode.id, { parentId: targetFolderId });
               moved = true;
             }
 
             // Check if title needs update
             if (rb.title && rb.title !== localNode.title && rb.title !== rb.url) {
-              await chrome.bookmarks.update(localNode.id, { title: rb.title });
+              await browserAPI.bookmarks.update(localNode.id, { title: rb.title });
               if (!moved) updatedCount++; // Only count once
             }
             if (moved) updatedCount++;
