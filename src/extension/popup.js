@@ -1,6 +1,6 @@
 // Removed hardcoded API_URL
 
-const browserAPI = window.browser || window.chrome;
+const browserAPI = globalThis.browser || globalThis.chrome;
 
 const bgBookmarks = new Proxy({}, {
   get(target, prop) {

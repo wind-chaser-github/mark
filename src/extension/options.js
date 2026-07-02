@@ -1,4 +1,4 @@
-const browserAPI = window.browser || window.chrome;
+const browserAPI = globalThis.browser || globalThis.chrome;
 
 const saveOptions = () => {
   const apiKey = document.getElementById('apiKey').value;

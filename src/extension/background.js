@@ -1,5 +1,5 @@
 const getConfig = () => {
-  const browserAPI = window.browser || window.chrome;
+  const browserAPI = globalThis.browser || globalThis.chrome;
   return new Promise(resolve => {
     browserAPI.storage.local.get({
       syncUrl: 'http://localhost:3999',
@@ -8,7 +8,7 @@ const getConfig = () => {
   });
 };
 
-const browserAPI = window.browser || window.chrome;
+const browserAPI = globalThis.browser || globalThis.chrome;
 
 browserAPI.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === 'BOOKMARK_API') {
